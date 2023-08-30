@@ -3,193 +3,182 @@ let books = require("./booksdb.js");
 let isValid = require("./auth_users.js").isValid;
 let users = require("./auth_users.js").users;
 const public_users = express.Router();
-const jwt = require('jsonwebtoken')
-const session = require('express-session')
-const axios = require("axios");
-
-
-
-
-public_users.use(
-	session({secret: 'fingerpint'}, (resave = true), (saveUninitialized = true))
-)
 
 public_users.post("/register", (req,res) => {
-  const username = req.body.username;
-  const password = req.body.password;
-  console.log(req.body)
-  if (username && password) {
-    if (!isValid(username)) {
-      users.push({"username":username,"password":password});
-      return res.status(200).json({message: "User successfully registred. Now you can login"});
-    } else {
-      return res.status(404).json({message: "User already exists!"});
-    }
+  let username = req.body.username;
+  let password = req.body.password;
+  if(username === ""){
+      return res.status(404).json({messaage: "Username empty"})
   }
-  return res.status(404).json({message: "Unable to register user."});
-
+  if(password === ""){
+    return res.status(404).json({messaage: "Password empty"})
+  }
+  const newUser = { username, password };
+  if(!isValid(newUser)){
+    return res.status(404).json({messaage: "Username already taken"})
+  }
+    // Return a success message
+    return res.status(200).json({messaage: "Registered"})
 });
 
-
-
-
-const authenticatedUser = (username, password) => {
-	//returns boolean
-	const matchingUsers = users.filter(
-		user => user.username === username && user.password === password
-	)
-	return matchingUsers.length > 0
-}
-
-///////////////////////////////////////////////////////////////////////////////
-public_users.post('/login', (req, res) => {
-	const username = req.body.username
-	const password = req.body.password
-    console.log(req.body)
-	if (!username || !password) {
-		return res.status(404).json({message: 'Error logging in'})
-	}
-
-	if (authenticatedUser(username, password)) {
-		let accessToken = jwt.sign(
-			{
-				data: password,
-			},
-			'access',
-			{expiresIn: 60 * 60}
-		)
-
-		req.session.authorization = {
-			accessToken,
-			username,
-		}
-		return res.status(200).send('User successfully logged in')
-	} else {
-		return res
-			.status(208)
-			.json({message: 'Invalid Login. Check username and password'})
-	}
-})
-
-
-
-
-
-
-
-
-
-
-///////////////////////////////////////////////////////////////////////////////
 // Get the book list available in the shop
-public_users.get("/async", async (req, res) => {
-    let response = await axios.get("http://localhost:5000/");
-    return res.send(response.data);
-});
-
-
 public_users.get('/',function (req, res) {
-    res.send(JSON.stringify({ books }, null, 4));
+    res.send(JSON.stringify({books},null,4));
+  return res.status(201).json({message: "Done"});
 });
 
-
-///////////////////////////////////////////////////////////////////////////////
 // Get book details based on ISBN
-
-public_users.get("/async/isbn/:isbn", (req, res) => {
-    axios.get("http://localhost:5000/isbn/" + req.params.isbn)
-      .then((response) => {
-        return res.status(200).json(response.data);
-      })
-      .catch((err) => {
-        return res.send(err);
-      });
-});
-
-
 public_users.get('/isbn/:isbn',function (req, res) {
     const isbn = req.params.isbn;
-    res.send(books[isbn]);
- });
-
-///////////////////////////////////////////////////////////////////////////////
-
-public_users.get("/async/author/:author", async (req, res) => {
-    let response = await axios.get("http://localhost:5000/author/"+req.params.author);
-    return res.status(200).json(response.data);
-  });
-
-
-
-// Get book details based on author
-public_users.get('/author/:author',function (req, res) {
-    const author = req.params.author;
-    const allBooksAuthor = Object.entries(books);
-    const Books = [];
-
-    for (const [key, value] of allBooksAuthor){
-        if(value.author === author){
-            Books.push(value);
-        }
+    if (books.hasOwnProperty(isbn)){
+        res.send(books[isbn]);
+        return res.status(201).json({message: "Done"});
     }
-    res.send(Books);
-});
-///////////////////////////////////////////////////////////////////////////////
-
-public_users.get("/async/title/:title", async (req, res) => {
-    let response = await axios.get("http://localhost:5000/title/"+req.params.title);
-    return res.status(200).json(response.data)
+    return res.status(404).json({message: "Book not found"});
+ });
+  
+ public_users.get('/author/:author', function (req, res) {
+    const author = req.params.author;
+  
+    // Filtrar los libros con el mismo autor
+    const filteredBooks = Object.values(books).filter((book) => book.author === author);
+  
+    if (filteredBooks.length > 0) {
+      res.send(JSON.stringify({ filteredBooks }, null, 4));
+      return res.status(202).json({ message: "Done" });
+    } else {
+      res.send("No books with author " + author);
+      return res.status(404).json({ message: "Books not found" });
+    }
   });
 
 // Get all books based on title
 public_users.get('/title/:title',function (req, res) {
     const title = req.params.title;
-    const allBooksTitle = Object.entries(books);
-    const Books = [];
-
-    for (const [key, value] of allBooksTitle){
-        if(value.title === title){
-            Books.push(value);
-        }
+  
+    // Filtrar los libros con el mismo autor
+    const filteredBooks = Object.values(books).filter((book) => book.title === title);
+  
+    if (filteredBooks.length > 0) {
+      res.send(JSON.stringify({ filteredBooks }, null, 4));
+      return res.status(202).json({ message: "Done" });
+    } else {
+      res.send("No books with title " + title);
+      return res.status(404).json({ message: "Books not found" });
     }
-    res.send(Books);
 });
 
 //  Get book review
 public_users.get('/review/:isbn',function (req, res) {
-  const isbn = req.params.isbn;
-  const book = books[isbn];
+    const isbn = req.params.isbn;
+    if (books.hasOwnProperty(isbn)){
+        res.send(books[isbn]['reviews']);
+        return res.status(201).json({message: "Done"});
+    }
+    return res.status(404).json({message: "Book not found"});
+});
 
-  res.send(book.reviews);
+// Get the book list available in the shop
+public_users.get('/promise/', function (req, res) {
+    const sendResponse = (data) => {
+        res.send(JSON.stringify(data, null, 4));
+    };
+
+    // Wrap the response sending in a Promise
+    const sendResponsePromise = new Promise((resolve, reject) => {
+        // Assuming 'books' is your book data
+        if (books) {
+            resolve(books);
+        } else {
+            reject(new Error("No books available"));
+        }
+    });
+
+    // Handling the promise
+    sendResponsePromise
+        .then(sendResponse)
+        .catch(error => {
+            console.error(error);
+            res.status(500).json({ message: "Error getting book list" });
+        });
+});
+
+// Get book details based on ISBN
+public_users.get('/promise/isbn/:isbn', function (req, res) {
+    const isbn = req.params.isbn;
+
+    // Wrap the response sending in a Promise
+    const sendResponsePromise = new Promise((resolve, reject) => {
+        if (books.hasOwnProperty(isbn)) {
+            resolve(books[isbn]);
+        } else {
+            reject(new Error("Book not found"));
+        }
+    });
+
+    // Handling the promise
+    sendResponsePromise
+        .then(bookDetails => {
+            return res.status(201).json({bookDetails});
+        })
+        .catch(error => {
+            console.error(error);
+            res.status(404).json({ message: "Book not found" });
+        });
+});
+
+// Get books by author
+public_users.get('/promise/author/:author', function (req, res) {
+    const author = req.params.author;
+
+    // Wrap the response sending in a Promise
+    const sendResponsePromise = new Promise((resolve, reject) => {
+        const filteredBooks = Object.values(books).filter((book) => book.author === author);
+
+        if (filteredBooks.length > 0) {
+            resolve(filteredBooks);
+        } else {
+            reject(new Error("Books not found"));
+        }
+    });
+
+    // Handling the promise
+    sendResponsePromise
+        .then(filteredBooks => {
+            res.send(JSON.stringify({ filteredBooks }, null, 4));
+        })
+        .catch(error => {
+            console.error(error);
+            res.status(404).json({ message: "Books not found" });
+        });
+});
+
+// Get books by title
+public_users.get('/promise/title/:title', function (req, res) {
+    const title = req.params.title;
+
+    // Wrap the response sending in a Promise
+    const sendResponsePromise = new Promise((resolve, reject) => {
+        const filteredBooks = Object.values(books).filter((book) => book.title === title);
+
+        if (filteredBooks.length > 0) {
+            resolve(filteredBooks);
+        } else {
+            reject(new Error("Books not found"));
+        }
+    });
+
+    // Handling the promise
+    sendResponsePromise
+        .then(filteredBooks => {
+            res.send(JSON.stringify({ filteredBooks }, null, 4));
+        })
+        .catch(error => {
+            console.error(error);
+            res.status(404).json({ message: "Books not found" });
+        });
 });
 
 
-
-
-public_users.put('/auth/review/:isbn', (req, res) => {
-	const isbn = req.params.isbn
-	const review = req.body.review
-	const username = req.session.authorization.username
-	if (books[isbn]) {
-		let book = books[isbn]
-		book.reviews[username] = review
-		return res.status(200).send('Review successfully posted')
-	} else {
-		return res.status(404).json({message: `ISBN ${isbn} not found`})
-	}
-})
-
-public_users.delete('/auth/review/:isbn', (req, res) => {
-	const isbn = req.params.isbn
-	const username = req.session.authorization.username
-	if (books[isbn]) {
-		let book = books[isbn]
-		delete book.reviews[username]
-		return res.status(200).send('Review successfully deleted')
-	} else {
-		return res.status(404).json({message: `ISBN ${isbn} not found`})
-	}
-})
-
-
 module.exports.general = public_users;
+
